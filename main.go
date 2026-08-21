@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/joho/godotenv"
 )
@@ -56,6 +57,35 @@ func loadData(path string) (map[string]string, error) {
 	return records, nil
 }
 
+func forwardToUpstream(query []byte) ([]byte, error) {
+	upstreamAddr, err := net.ResolveUDPAddr("udp", "8.8.8.8:53")
+	if err != nil {
+		return nil, err
+	}
+
+	conn, err := net.DialUDP("udp", nil, upstreamAddr)
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+
+	// set a timeout so a dead/slow upstream doesn't hang your server forever
+	conn.SetDeadline(time.Now().Add(3 * time.Second))
+
+	_, err = conn.Write(query)
+	if err != nil {
+		return nil, err
+	}
+
+	response := make([]byte, 512)
+	n, err := conn.Read(response)
+	if err != nil {
+		return nil, err
+	}
+
+	return response[:n], nil
+}
+
 func main() {
 	godotenv.Load(".env")
 
@@ -83,7 +113,7 @@ func main() {
 	buf := make([]byte, 512)
 
 	for {
-		_, clientAddr, err := conn.ReadFromUDP(buf)
+		n, clientAddr, err := conn.ReadFromUDP(buf)
 		if err != nil {
 			fmt.Println("read error:", err)
 			continue
@@ -95,8 +125,12 @@ func main() {
 
 		ipstring, found := records[name]
 		if !found {
-			fmt.Println("no record for", name)
-			continue
+			upstreamResponse, err := forwardToUpstream(buf[:n])
+			if err != nil {
+				fmt.Println("upstream forward failed:", err)
+				continue
+			}
+			conn.WriteToUDP(upstreamResponse, clientAddr)
 		}
 
 		fmt.Printf("Query ID=%d from %s: name=%s type=%d class=%d\n",
