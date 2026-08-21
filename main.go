@@ -86,6 +86,35 @@ func forwardToUpstream(query []byte) ([]byte, error) {
 	return response[:n], nil
 }
 
+func handleQuery(buf []byte, clientAddr *net.UDPAddr, conn *net.UDPConn, records map[string]string) {
+	header := parseHeader(buf)
+	name, nextOffset := parseName(buf, 12) // question starts right after the 12-byte header
+	qtype := binary.BigEndian.Uint16(buf[nextOffset : nextOffset+2])
+	qclass := binary.BigEndian.Uint16(buf[nextOffset+2 : nextOffset+4])
+
+	fmt.Printf("Query ID=%d from %s: name=%s type=%d class=%d\n",
+		header.ID, clientAddr, name, qtype, qclass)
+
+	ipstring, found := records[name]
+
+	if found {
+		response := buildResponseHeader(header.ID)
+		questions, nameByte := buildResponseQuestions(buf, 12)
+		response = append(response, questions...)
+		answer := buildReponseAnswer(nameByte, net.ParseIP(ipstring))
+		response = append(response, answer...)
+		conn.WriteToUDP(response, clientAddr)
+		return
+	}
+
+	upstreamResponse, err := forwardToUpstream(buf)
+	if err != nil {
+		fmt.Println("upstream forward failed:", err)
+		return
+	}
+	conn.WriteToUDP(upstreamResponse, clientAddr)
+}
+
 func main() {
 	godotenv.Load(".env")
 
@@ -118,30 +147,10 @@ func main() {
 			fmt.Println("read error:", err)
 			continue
 		}
-		header := parseHeader(buf)
-		name, nextOffset := parseName(buf, 12) // question starts right after the 12-byte header
-		qtype := binary.BigEndian.Uint16(buf[nextOffset : nextOffset+2])
-		qclass := binary.BigEndian.Uint16(buf[nextOffset+2 : nextOffset+4])
 
-		ipstring, found := records[name]
-		if !found {
-			upstreamResponse, err := forwardToUpstream(buf[:n])
-			if err != nil {
-				fmt.Println("upstream forward failed:", err)
-				continue
-			}
-			conn.WriteToUDP(upstreamResponse, clientAddr)
-		}
+		queryCopy := make([]byte, n)
+		copy(queryCopy, buf[:n])
+		go handleQuery(queryCopy, clientAddr, conn, records)
 
-		fmt.Printf("Query ID=%d from %s: name=%s type=%d class=%d\n",
-			header.ID, clientAddr, name, qtype, qclass)
-
-		response := buildResponseHeader(header.ID)
-		questions, nameByte := buildResponseQuestions(buf, 12)
-		response = append(response, questions...)
-		answer := buildReponseAnswer(nameByte, net.ParseIP(ipstring))
-		response = append(response, answer...)
-
-		conn.WriteToUDP(response, clientAddr)
 	}
 }
