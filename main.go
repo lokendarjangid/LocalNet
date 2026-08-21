@@ -36,5 +36,14 @@ func main() {
 
 		fmt.Printf("Query ID=%d from %s: name=%s type=%d class=%d\n",
 			header.ID, clientAddr, name, qtype, qclass)
+
+		response := buildResponseHeader(header.ID)
+		questions, nameByte := buildResponseQuestions(buf, 12)
+		response = append(response, questions...)
+		answer := buildReponseAnswer(nameByte, net.ParseIP("127.0.0.1"))
+		response = append(response, answer...)
+
+		conn.WriteToUDP(response, clientAddr)
+
 	}
 }
