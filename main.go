@@ -68,10 +68,16 @@ func forwardToUpstream(query []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer conn.Close()
+	defer func() {
+		if closeErr := conn.Close(); closeErr != nil {
+			fmt.Println("failed to close upstream connection:", closeErr)
+		}
+	}()
 
 	// set a timeout so a dead/slow upstream doesn't hang your server forever
-	conn.SetDeadline(time.Now().Add(3 * time.Second))
+	if err := conn.SetDeadline(time.Now().Add(3 * time.Second)); err != nil {
+		return nil, err
+	}
 
 	_, err = conn.Write(query)
 	if err != nil {
@@ -104,7 +110,9 @@ func handleQuery(buf []byte, clientAddr *net.UDPAddr, conn *net.UDPConn, records
 		response = append(response, questions...)
 		answer := buildReponseAnswer(nameByte, net.ParseIP(ipstring))
 		response = append(response, answer...)
-		conn.WriteToUDP(response, clientAddr)
+		if _, err := conn.WriteToUDP(response, clientAddr); err != nil {
+			fmt.Println("failed to write local response:", err)
+		}
 		return
 	}
 
@@ -113,11 +121,15 @@ func handleQuery(buf []byte, clientAddr *net.UDPAddr, conn *net.UDPConn, records
 		fmt.Println("upstream forward failed:", err)
 		return
 	}
-	conn.WriteToUDP(upstreamResponse, clientAddr)
+	if _, err := conn.WriteToUDP(upstreamResponse, clientAddr); err != nil {
+		fmt.Println("failed to write upstream response:", err)
+	}
 }
 
 func main() {
-	godotenv.Load(".env")
+	if err := godotenv.Load(".env"); err != nil && !os.IsNotExist(err) {
+		fmt.Println("failed to load .env file:", err)
+	}
 
 	records, err := loadData(getEnv("RECORDS_PATH", "/etc/LocalNet/records.json"))
 	if err != nil {
@@ -136,7 +148,11 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	defer conn.Close()
+	defer func() {
+		if closeErr := conn.Close(); closeErr != nil {
+			fmt.Println("failed to close listener:", closeErr)
+		}
+	}()
 
 	fmt.Printf("Listening on port %d...\n", port)
 
