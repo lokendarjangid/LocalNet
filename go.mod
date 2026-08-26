@@ -1,4 +1,4 @@
-module LocalNet
+module github.com/lokendarjangid/LocalNet
 
 go 1.27.0
 
