@@ -28,6 +28,7 @@ func getEnv(envkey string, fallback string) string {
 	return fallback
 }
 
+// It is a function to load data from records file
 func loadData(path string) (map[string]string, error) {
 	_, err := os.Stat(path)
 	if os.IsNotExist(err) {
