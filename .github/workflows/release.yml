@@ -1,5 +1,4 @@
-name: Create Release and Tag
-
+name: GoReleaser
 on:
   push:
     branches:
@@ -9,31 +8,47 @@ permissions:
   contents: write
 
 jobs:
-  create-release:
-    name: Creating Tag and Release
+  create-tag:
+    name: Creating tag
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout the repo
         uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.PA_TOKEN }}
 
-      - name: Creating Tag
+      - name: Creating Changelog and Release
         id: changelog
         uses: TriPSs/conventional-changelog-action@v6
         with:
           github-token: ${{ secrets.PA_TOKEN }}
           output-file: "false"
+          skip-commit: "true"
           create-summary: "true"
-          version-file: "./version.yaml"
+    outputs:
+      tag: ${{ steps.changelog.outputs.tag }}
 
-      - name: Create Release
-        if: steps.changelog.outputs.skipped == 'false'
-        uses: ncipollo/release-action@v1
+  goreleasers:
+    name: GoReleaser
+    runs-on: ubuntu-latest
+    needs: create-tag
+    # only run if the tag is not empty
+    if: ${{ needs.create-tag.outputs.tag != '' }}
+    steps:
+      - name: Checkout the repo
+        uses: actions/checkout@v7
         with:
-          token: ${{ secrets.PA_TOKEN }}
-          tag: ${{ steps.changelog.outputs.tag }}
-          name: ${{ steps.changelog.outputs.tag }}
-          body: ${{ steps.changelog.outputs.clean_changelog }}
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
