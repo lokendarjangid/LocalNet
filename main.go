@@ -3,7 +3,7 @@ package main
 import (
 	"encoding/binary"
 	"encoding/json"
-	"fmt"
+	"log"
 	"net"
 	"os"
 	"strconv"
@@ -42,7 +42,7 @@ func loadData(path string) (map[string]string, error) {
 		if err != nil {
 			return nil, err
 		}
-		fmt.Println("no config found — created empty file at", path)
+		log.Println("no config found — created empty file at", path)
 	}
 
 	data, err := os.ReadFile(path)
@@ -71,7 +71,7 @@ func forwardToUpstream(query []byte) ([]byte, error) {
 	}
 	defer func() {
 		if closeErr := conn.Close(); closeErr != nil {
-			fmt.Println("failed to close upstream connection:", closeErr)
+			log.Println("failed to close upstream connection:", closeErr)
 		}
 	}()
 
@@ -100,7 +100,7 @@ func handleQuery(buf []byte, clientAddr *net.UDPAddr, conn *net.UDPConn, records
 	qtype := binary.BigEndian.Uint16(buf[nextOffset : nextOffset+2])
 	qclass := binary.BigEndian.Uint16(buf[nextOffset+2 : nextOffset+4])
 
-	fmt.Printf("Query ID=%d from %s: name=%s type=%d class=%d\n",
+	log.Printf("Query ID=%d from %s: name=%s type=%d class=%d\n",
 		header.ID, clientAddr, name, qtype, qclass)
 
 	ipstring, found := records[name]
@@ -112,24 +112,24 @@ func handleQuery(buf []byte, clientAddr *net.UDPAddr, conn *net.UDPConn, records
 		answer := dns.BuildResponseAnswer(nameByte, net.ParseIP(ipstring))
 		response = append(response, answer...)
 		if _, err := conn.WriteToUDP(response, clientAddr); err != nil {
-			fmt.Println("failed to write local response:", err)
+			log.Println("failed to write local response:", err)
 		}
 		return
 	}
 
 	upstreamResponse, err := forwardToUpstream(buf)
 	if err != nil {
-		fmt.Println("upstream forward failed:", err)
+		log.Println("upstream forward failed:", err)
 		return
 	}
 	if _, err := conn.WriteToUDP(upstreamResponse, clientAddr); err != nil {
-		fmt.Println("failed to write upstream response:", err)
+		log.Println("failed to write upstream response:", err)
 	}
 }
 
 func main() {
 	if err := godotenv.Load(".env"); err != nil && !os.IsNotExist(err) {
-		fmt.Println("failed to load .env file:", err)
+		log.Println("failed to load .env file:", err)
 	}
 
 	records, err := loadData(getEnv("RECORDS_PATH", "/etc/LocalNet/records.json"))
@@ -151,18 +151,18 @@ func main() {
 	}
 	defer func() {
 		if closeErr := conn.Close(); closeErr != nil {
-			fmt.Println("failed to close listener:", closeErr)
+			log.Println("failed to close listener:", closeErr)
 		}
 	}()
 
-	fmt.Printf("Listening on port %d...\n", port)
+	log.Printf("Listening on port %d...\n", port)
 
 	buf := make([]byte, 512)
 
 	for {
 		n, clientAddr, err := conn.ReadFromUDP(buf)
 		if err != nil {
-			fmt.Println("read error:", err)
+			log.Println("read error:", err)
 			continue
 		}
 
