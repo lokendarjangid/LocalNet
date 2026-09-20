@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
+	"github.com/lokendarjangid/LocalNet/dns"
 )
 
 func getEnvAsInt(envkey string, fallback int) int {
@@ -94,8 +95,8 @@ func forwardToUpstream(query []byte) ([]byte, error) {
 }
 
 func handleQuery(buf []byte, clientAddr *net.UDPAddr, conn *net.UDPConn, records map[string]string) {
-	header := parseHeader(buf)
-	name, nextOffset := parseName(buf, 12) // question starts right after the 12-byte header
+	header := dns.ParseHeader(buf)
+	name, nextOffset := dns.ParseName(buf, 12) // question starts right after the 12-byte header
 	qtype := binary.BigEndian.Uint16(buf[nextOffset : nextOffset+2])
 	qclass := binary.BigEndian.Uint16(buf[nextOffset+2 : nextOffset+4])
 
@@ -105,10 +106,10 @@ func handleQuery(buf []byte, clientAddr *net.UDPAddr, conn *net.UDPConn, records
 	ipstring, found := records[name]
 
 	if found {
-		response := buildResponseHeader(header.ID)
-		questions, nameByte := buildResponseQuestions(buf, 12)
+		response := dns.BuildResponseHeader(header.ID)
+		questions, nameByte := dns.BuildResponseQuestions(buf, 12)
 		response = append(response, questions...)
-		answer := buildReponseAnswer(nameByte, net.ParseIP(ipstring))
+		answer := dns.BuildResponseAnswer(nameByte, net.ParseIP(ipstring))
 		response = append(response, answer...)
 		if _, err := conn.WriteToUDP(response, clientAddr); err != nil {
 			fmt.Println("failed to write local response:", err)

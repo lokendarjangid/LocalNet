@@ -1,11 +1,11 @@
-package main
+package dns
 
 import (
 	"encoding/binary"
 	"net"
 )
 
-func buildResponseHeader(qID uint16) []byte {
+func BuildResponseHeader(qID uint16) []byte {
 	header := make([]byte, 12)
 	binary.BigEndian.PutUint16(header[0:2], qID)    // same ID as the query
 	binary.BigEndian.PutUint16(header[2:4], 0x8180) // flags: QR=1 (response), RD=1, RA=1
@@ -16,7 +16,7 @@ func buildResponseHeader(qID uint16) []byte {
 	return header
 }
 
-func buildResponseQuestions(buf []byte, startOffset int) (questions []byte, nameByte []byte) {
+func BuildResponseQuestions(buf []byte, startOffset int) (questions []byte, nameByte []byte) {
 	offset := startOffset
 
 	for {
@@ -32,7 +32,7 @@ func buildResponseQuestions(buf []byte, startOffset int) (questions []byte, name
 	return buf[startOffset:end], buf[startOffset:offset]
 }
 
-func buildReponseAnswer(name []byte, ip net.IP) []byte {
+func BuildResponseAnswer(name []byte, ip net.IP) []byte {
 	var out []byte
 
 	out = append(out, name...) // NAME

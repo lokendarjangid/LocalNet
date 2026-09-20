@@ -1,4 +1,4 @@
-package main
+package dns
 
 import (
 	"encoding/binary"
@@ -14,7 +14,7 @@ type DNSHeader struct {
 	ARCount uint16
 }
 
-func parseHeader(buf []byte) DNSHeader {
+func ParseHeader(buf []byte) DNSHeader {
 	return DNSHeader{
 		ID:      binary.BigEndian.Uint16(buf[0:2]),
 		Flags:   binary.BigEndian.Uint16(buf[2:4]),
@@ -25,7 +25,7 @@ func parseHeader(buf []byte) DNSHeader {
 	}
 }
 
-func parseName(buf []byte, offset int) (string, int) {
+func ParseName(buf []byte, offset int) (string, int) {
 	var labels []string
 	for {
 		length := int(buf[offset])
