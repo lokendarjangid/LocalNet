@@ -32,6 +32,8 @@ func getEnv(envkey string, fallback string) string {
 // It is a function to load data from records file
 func loadData(path string) (map[string]string, error) {
 	_, err := os.Stat(path)
+
+	// create a records file in
 	if os.IsNotExist(err) {
 		emptyRecords := map[string]string{}
 		data, err := json.MarshalIndent(emptyRecords, "", "  ")
@@ -100,7 +102,7 @@ func handleQuery(buf []byte, clientAddr *net.UDPAddr, conn *net.UDPConn, records
 	qtype := binary.BigEndian.Uint16(buf[nextOffset : nextOffset+2])
 	qclass := binary.BigEndian.Uint16(buf[nextOffset+2 : nextOffset+4])
 
-	log.Printf("Query ID=%d from %s: name=%s type=%d class=%d\n",
+	log.Printf("Query ID=%d from=%s name=%s type=%d class=%d\n",
 		header.ID, clientAddr, name, qtype, qclass)
 
 	ipstring, found := records[name]
